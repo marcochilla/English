@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Quiz di Inglese per Bambini</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    body {
+      font-family: Comic Sans MS, sans-serif;
+      background: linear-gradient(to bottom right, #f0f8ff, #ffe4e1);
+      text-align: center;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 20px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.1);
+    }
+    button {
+      font-size: 18px;
+      padding: 10px 20px;
+      margin: 10px;
+      border: none;
+      border-radius: 12px;
+      background-color: #87cefa;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #4682b4;
+    }
+    .scramble {
+      margin: 20px;
+    }
+    .scramble button {
+      background-color: #f08080;
+      margin: 5px;
+    }
+    input[type="text"] {
+      font-size: 24px;
+      padding: 5px;
+      width: 200px;
+      text-align: center;
+    }
+    .correct {
+      background-color: #d4edda;
+    }
+    .wrong {
+      background-color: #f8d7da;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Quiz di Inglese per Bambini</h1>
+
+    <div id="setup-screen" style="display:none;">
+      <p>Quante domande vuoi affrontare?</p>
+      <input type="number" id="questionCount" min="1" value="5">
+      <br>
+      <button onclick="startQuiz()">Inizia</button>
+    </div>
+
+    <div id="quiz" style="display:none;">
+      <h2 id="questionNumber"></h2>
+      <h3 id="italianWord"></h3>
+      <div class="scramble" id="scrambleButtons"></div>
+      <input type="text" id="answerInput" readonly>
+      <br>
+      <button onclick="prevQuestion()">Indietro</button>
+      <button onclick="nextQuestion()">Avanti</button>
+      <button onclick="endQuiz()">Fine Test</button>
+    </div>
+
+    <div id="result" style="display:none;">
+      <h2>Risultato Finale</h2>
+      <p id="score"></p>
+      <button onclick="restartQuiz()">Ripeti il Test</button>
+      <button onclick="window.close()">Chiudi Pagina</button>
+    </div>
+  </div>
+
+  <script>
+    let fullQuizData = [];
+    let selectedQuestions = [];
+    let userAnswers = [];
+    let current = 0;
+    let totalQuestions = 5;
+
+    // Caricamento automatico del file Test.xlsx
+    window.onload = () => {
+      const fileUrl = "Test.xlsx"; // Assicurati che sia nello stesso path
+      fetch(fileUrl)
+        .then(response => response.arrayBuffer())
+        .then(data => {
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+          fullQuizData = rows
+            .filter(r => r.length >= 2 && r[0] && r[1])
+            .map(r => ({ it: r[0].toString().trim(), en: r[1].toString().trim() }));
+
+          if (fullQuizData.length > 0) {
+            document.getElementById('setup-screen').style.display = 'block';
+          } else {
+            alert("Il file è vuoto o non valido.");
+          }
+        })
+        .catch(error => {
+          alert("Errore nel caricamento del file Excel.");
+          console.error(error);
+        });
+    };
+
+    function startQuiz() {
+      totalQuestions = Math.min(parseInt(document.getElementById('questionCount').value), fullQuizData.length);
+      selectedQuestions = shuffle([...fullQuizData]).slice(0, totalQuestions);
+      userAnswers = Array(totalQuestions).fill('');
+      current = 0;
+      document.getElementById('setup-screen').style.display = 'none';
+      document.getElementById('quiz').style.display = 'block';
+      showQuestion();
+    }
+
+    function showQuestion() {
+      const q = selectedQuestions[current];
+      const answer = userAnswers[current];
+      document.getElementById('italianWord').innerText = q.it;
+      document.getElementById('questionNumber').innerText = `Domanda ${current + 1}/${totalQuestions}`;
+      document.getElementById('answerInput').value = answer;
+      document.getElementById('answerInput').className = "";
+      showScrambledLetters(q.en);
+    }
+
+    function showScrambledLetters(word) {
+      const scrambleDiv = document.getElementById('scrambleButtons');
+      scrambleDiv.innerHTML = '';
+      const scrambled = shuffle(word.split(''));
+      scrambled.forEach(letter => {
+        const btn = document.createElement('button');
+        btn.innerText = letter;
+        btn.onclick = () => {
+          document.getElementById('answerInput').value += letter;
+          checkAnswer();
+        };
+        scrambleDiv.appendChild(btn);
+      });
+    }
+
+    function checkAnswer() {
+      const input = document.getElementById('answerInput').value.toLowerCase();
+      const correct = selectedQuestions[current].en.toLowerCase();
+      if (input.length === correct.length) {
+        const isCorrect = input === correct;
+        userAnswers[current] = input;
+        document.getElementById('answerInput').className = isCorrect ? 'correct' : 'wrong';
+      }
+    }
+
+    function nextQuestion() {
+      if (current < totalQuestions - 1) {
+        current++;
+        showQuestion();
+      }
+    }
+
+    function prevQuestion() {
+      if (current > 0) {
+        current--;
+        showQuestion();
+      }
+    }
+
+    function endQuiz() {
+      let correctCount = 0;
+      for (let i = 0; i < totalQuestions; i++) {
+        if (userAnswers[i].toLowerCase() === selectedQuestions[i].en.toLowerCase()) {
+          correctCount++;
+        }
+      }
+      document.getElementById('quiz').style.display = 'none';
+      document.getElementById('result').style.display = 'block';
+      document.getElementById('score').innerText = `Hai risposto correttamente a ${correctCount} su ${totalQuestions} domande.`;
+    }
+
+    function restartQuiz() {
+      selectedQuestions = shuffle([...fullQuizData]).slice(0, totalQuestions);
+      userAnswers = Array(totalQuestions).fill('');
+      current = 0;
+      document.getElementById('result').style.display = 'none';
+      document.getElementById('quiz').style.display = 'block';
+      showQuestion();
+    }
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+  </script>
+</body>
+</html>
